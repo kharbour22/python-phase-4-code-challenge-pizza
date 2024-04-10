@@ -19,6 +19,67 @@ db.init_app(app)
 
 api = Api(app)
 
+class AllRestaurants(Resource):
+
+    def get(self):
+        restaurants = Restaurant.query.all()
+        restaurants_list = [restaurant.to_dict(only=('id', 'address', 'name'))for restaurant in restaurants]
+        return make_response(restaurants_list, 200)
+api.add_resource(AllRestaurants, "/restaurants")
+
+class RestaurantById(Resource):
+
+    def get(self, id):
+        restaurant = Restaurant.query.filter_by(id=id).first()
+
+        if restaurant:
+            response_body = restaurant.to_dict(rules = ('-restaurant_pizzas.restaurant','-restaurant_pizzas.pizza.restaurant_pizzas' ))
+            return make_response (response_body, 200)
+        else:
+            response_body = {
+                "error": "Restaurant not found"
+            }
+            return make_response(response_body, 404)
+        
+    def delete(self, id):
+        restaurant = Restaurant.query.filter_by(id=id).first()
+
+        if restaurant:
+            db.session.delete(restaurant)
+            db.session.commit()
+            response_body = {}
+            return make_response(response_body, 204)
+        else:
+            response_body = {
+                "error": "Restaurant not found"
+            }
+            return make_response(response_body, 404)
+
+api.add_resource(RestaurantById, "/restaurants/<int:id>")
+
+class AllPizzas(Resource):
+    def get(self):
+        response_body = [pizza.to_dict(rules = ('-restaurant_pizzas',)) for pizza in Pizza.query.all()]
+        return make_response(response_body, 200)
+api.add_resource(AllPizzas, "/pizzas")
+
+class AllRestaurantPizza(Resource):
+    def post(self):
+        try:
+            new_pizza = RestaurantPizza(price = request.json.get('price'), pizza_id = request.json.get('pizza_id'), restaurant_id = request.json.get('restaurant_id'))
+            db.session.add(new_pizza)
+            db.session.commit()
+            response_body = new_pizza.to_dict(rules = ('-pizza.restaurant_pizzas', '-restaurant.restaurant_pizzas'))
+            return make_response(response_body, 201)
+        except:
+            response_body= {
+                "errors": ["validation errors"]
+            }
+            return make_response(response_body, 400)
+
+api.add_resource(AllRestaurantPizza, "/restaurant_pizzas")
+
+        
 
 @app.route("/")
 def index():
